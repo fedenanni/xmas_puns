@@ -8,7 +8,7 @@ import configparser
 # Get configuration file
 config = configparser.ConfigParser()
 config.sections()
-config.read('./config/api.ini')
+config.read('../config/api.ini')
 token = config.get('main', 'secret')
 
 genius = Genius(token)
