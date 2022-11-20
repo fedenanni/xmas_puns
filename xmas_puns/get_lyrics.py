@@ -1,8 +1,6 @@
 from lyricsgenius import Genius
 import pandas
-import time
 import json
-import os
 import configparser
 import re
 
@@ -14,15 +12,15 @@ token = config.get('main', 'secret')
 
 genius = Genius(token)
 
-df = pandas.read_csv("data/top100.csv")[:5]
+df = pandas.read_csv("data/top100.csv")
 data = []
 
 for idx,row in df.iterrows():
     title = row["Title"].replace('"', '')
     artist = row["Artist"]
     try:
-        song = genius.search_song(title)
-        
+        song = genius.search_song(title, artist)
+        print(song)
         clean_lyrics = song.lyrics.split("Lyrics")[1]
         clean_lyrics = clean_lyrics.split("Embed")[0]
         clean_lyrics = "".join(re.split("\(|\)|\[|\]", clean_lyrics)[::2])
@@ -34,7 +32,6 @@ for idx,row in df.iterrows():
                 'lyrics':clean_lyrics
             }
         )
-        #time.sleep(.30)
         
     except Exception as e:
         print(e)
