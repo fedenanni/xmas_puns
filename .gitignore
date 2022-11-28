@@ -132,3 +132,4 @@ dmypy.json
 xmas_puns/model_save/*
 xmas_puns/out/*
 data.json
+xmas_puns/current_model_save/*

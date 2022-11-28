@@ -1,4 +1,7 @@
 import os
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+import json
 import torch
 import time
 import datetime
@@ -20,7 +23,7 @@ tokenizer = GPT2Tokenizer.from_pretrained(
     "gpt2", bos_token="<|startoftext|>", eos_token="<|endoftext|>", pad_token="<|pad|>"
 )  # gpt2-medium
 
-batch_size = 2
+batch_size = 50
 
 
 class GPT2Dataset(Dataset):
@@ -49,7 +52,18 @@ class GPT2Dataset(Dataset):
         return self.input_ids[idx], self.attn_masks[idx]
 
 
-xmas_songs = ["this is a christmas song", "this is another christmas song"]
+with open("data/data.json") as f:
+    d = json.load(f)
+
+# hardocoded cutoff for the moment
+xmas_songs = [x["lyrics"] for x in d if len(x["lyrics"]) < 90000]
+
+# with open("data/ra_top_1000_data_set.json") as f:
+#     d = json.load(f)
+
+# xmas_songs = [x["bio"] for x in d][:100]
+
+print(len(xmas_songs))
 
 dataset = GPT2Dataset(xmas_songs, tokenizer, max_length=768)
 
@@ -88,8 +102,8 @@ model = GPT2LMHeadModel.from_pretrained("gpt2", config=configuration)
 model.resize_token_embeddings(len(tokenizer))
 
 # Tell pytorch to run this model on the GPU.
-device = torch.device("cpu")
-model.cpu()
+device = torch.device("mps")
+# model.mps()
 
 # Set the seed value all over the place to make this reproducible.
 seed_val = 42
@@ -101,7 +115,7 @@ torch.cuda.manual_seed_all(seed_val)
 
 # some parameters I cooked up that work reasonably well
 
-epochs = 5
+epochs = 1
 learning_rate = 5e-4
 warmup_steps = 1e2
 epsilon = 1e-8
@@ -109,6 +123,8 @@ epsilon = 1e-8
 # this produces sample output every 100 steps
 sample_every = 100
 
+# just as a starting point
+prev_eval_loss = 100000
 
 # Note: AdamW is a class from the huggingface library (as opposed to pytorch)
 optimizer = AdamW(model.parameters(), lr=learning_rate, eps=epsilon)
@@ -260,6 +276,10 @@ for epoch_i in range(0, epochs):
             "Validation Time": validation_time,
         }
     )
+    if avg_val_loss > prev_eval_loss:
+        break
+    else:
+        prev_eval_loss = avg_val_loss
 
 print("")
 print("Training complete!")
@@ -285,3 +305,25 @@ tokenizer.save_pretrained(output_dir)
 
 # Good practice: save your training arguments together with the trained model
 # torch.save(args, os.path.join(output_dir, 'training_args.bin'))
+
+model.eval()
+
+prompt = "<|startoftext|>"
+
+generated = torch.tensor(tokenizer.encode(prompt)).unsqueeze(0)
+generated = generated.to(device)
+
+print(generated)
+
+sample_outputs = model.generate(
+    generated,
+    # bos_token_id=random.randint(1,30000),
+    do_sample=True,
+    top_k=15,
+    max_length=300,
+    top_p=0.95,
+    num_return_sequences=3,
+)
+
+for i, sample_output in enumerate(sample_outputs):
+    print("{}: {}\n\n".format(i, tokenizer.decode(sample_output, skip_special_tokens=True)))
